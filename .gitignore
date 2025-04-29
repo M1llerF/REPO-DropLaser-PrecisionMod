@@ -1,0 +1,42 @@
+# Ignore build output
+bin/
+obj/
+
+# Rider / VSCode / JetBrains
+.idea/
+.vscode/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# ReSharper & related
+*.DotSettings.user
+
+# Windows thumbnail/cache files
+Thumbs.db
+Desktop.ini
+
+# VS backup files
+*.bak
+*.log
+*.vspscc
+*.vssscc
+
+# NuGet packages
+packages/
+*.nupkg
+*.snupkg
+
+# Auto-generated BepInEx config files
+BepInEx/config/*.cfg
+BepInEx/logs/
+BepInEx/LogOutput.log
+
+# Final zipped mod packages
+*.zip
+
+# Unity libraries (in case game libraries are copied in)
+*.dll
+!manifest.json
+!FloatSensitivityPatch.dll
