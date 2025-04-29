@@ -1,8 +1,8 @@
 {
   "name": "ObjectDropLaser",
   "version_number": "1.0.0",
-  "website_url": "https://github.com/M1llerF/REPO-GrabBeam-PhysicsColorMod",
-  "description": "This mod dynamically adjusts the grab beam color in REPO based on mass, impact force, and object type!",
+  "website_url": "https://github.com/M1llerF/REPO-DropLaser-PrecisionMod",
+  "description": "Tired of missing the cart? Shoot a laser to see where objects will drop!",
   "dependencies": [
     "BepInEx-BepInExPack-5.4.2100"
   ]
