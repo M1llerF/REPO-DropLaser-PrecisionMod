@@ -1,4 +1,4 @@
-# REPO-DropLaser
+# REPO-DropLaser-PrecisionMod
 
 A precise object landing assistant for the game **REPO**.  
 **Adds a customizable laser showing where your held object will land if dropped**, helping you aim throws and drops more accurately.
