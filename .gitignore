@@ -40,3 +40,8 @@ BepInEx/LogOutput.log
 *.dll
 !manifest.json
 !FloatSensitivityPatch.dll
+
+game-source-files/
+build-install-run.ps1
+Repository Release.sln
+REPO-DropLaser/
