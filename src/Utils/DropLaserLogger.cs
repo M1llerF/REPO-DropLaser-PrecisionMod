@@ -16,7 +16,7 @@ namespace ObjectDropLaserMod.Utils
         public static void Info(string message)
         {
             if (Plugin.EnableLogging.Value)
-                Plugin.log.LogInfo("message");
+                Plugin.log.LogInfo(message);
         }
 
         /// <summary>
