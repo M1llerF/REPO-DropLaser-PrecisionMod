@@ -495,6 +495,12 @@ namespace ObjectDropLaserMod.Components
             Material beamMaterial = sourceBeamLine != null && sourceBeamLine.material != null
                 ? sourceBeamLine.material
                 : dropBeamLine.material;
+            if (beamMaterial == null)
+            {
+                ghostRoot.SetActive(false);
+                return;
+            }
+
             float ghostOpacity = Mathf.Clamp01(Plugin.GhostOpacity.Value);
 
             foreach (GhostRendererState rendererState in ghostRenderers)
@@ -555,24 +561,7 @@ namespace ObjectDropLaserMod.Components
 
         private static void ApplyGhostOpacity(Material material, float opacity)
         {
-            if (material == null)
-                return;
-
-            float clampedOpacity = Mathf.Clamp01(opacity);
-
-            if (material.HasProperty("_Color"))
-            {
-                Color color = material.GetColor("_Color");
-                color.a = clampedOpacity;
-                material.SetColor("_Color", color);
-            }
-
-            if (material.HasProperty("_BaseColor"))
-            {
-                Color baseColor = material.GetColor("_BaseColor");
-                baseColor.a = clampedOpacity;
-                material.SetColor("_BaseColor", baseColor);
-            }
+            DropLaserMaterialService.ApplyOpacityToKnownColorProperties(material, opacity);
         }
 
         private static Bounds GetObjectBounds(GameObject root)

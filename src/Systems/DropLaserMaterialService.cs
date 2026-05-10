@@ -81,5 +81,26 @@ namespace ObjectDropLaserMod.Systems
             if (material.HasProperty("_BaseColor"))
                 material.SetColor("_BaseColor", color);
         }
+
+        public static void ApplyOpacityToKnownColorProperties(Material material, float opacity)
+        {
+            if (material == null)
+                return;
+
+            float clampedOpacity = Mathf.Clamp01(opacity);
+            ApplyAlphaIfPresent(material, "_Color", clampedOpacity);
+            ApplyAlphaIfPresent(material, "_BaseColor", clampedOpacity);
+            ApplyAlphaIfPresent(material, "_TintColor", clampedOpacity);
+        }
+
+        private static void ApplyAlphaIfPresent(Material material, string propertyName, float alpha)
+        {
+            if (!material.HasProperty(propertyName))
+                return;
+
+            Color color = material.GetColor(propertyName);
+            color.a = alpha;
+            material.SetColor(propertyName, color);
+        }
     }
 }
