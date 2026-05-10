@@ -1,11 +1,12 @@
 using System.Collections.Generic;
+using ObjectDropLaserMod.Systems;
 using ObjectDropLaserMod.Utils;
 using UnityEngine;
 
 namespace ObjectDropLaserMod.Components
 {
     /// <summary>
-    /// Updates the drop laser beam, light, and cart ghost preview for the currently held object.
+    /// Updates the drop laser beam, light, ghost preview, and optional overlay core for the held object.
     /// </summary>
     public class DropLaserBeam
     {
@@ -15,20 +16,26 @@ namespace ObjectDropLaserMod.Components
         private const float MinimumBeamLength = 0.01f;
         private const int RaycastBufferSize = 64;
         private const float FallbackBoundsSize = 0.1f;
+        private const float EndTaperPortion = 0.03f;
+        private const float EndTaperAlphaMultiplier = 0.6f;
 
         private readonly LineRenderer dropBeamLine;
+        private readonly LineRenderer grabBeamOverlayLine;
+        private readonly LineRenderer dropBeamOverlayLine;
         private readonly Light dropBeamLight;
         private readonly GameObject sourceBeamObject;
         private readonly LineRenderer sourceBeamLine;
         private readonly PhysGrabber playerGrabber;
         private readonly HashSet<string> ignoredCartParts;
         private readonly RaycastHit[] raycastHitBuffer = new RaycastHit[RaycastBufferSize];
+        private readonly SagaOrchestrator saga;
+        private readonly DropLaserOverlayService overlayService;
 
         private readonly List<GhostRendererState> ghostRenderers = new();
         private GameObject ghostRoot;
         private PhysGrabObject ghostSource;
         private int nextGhostUpdateFrame;
-        private Color currentLaserColor = Color.white;
+        private int nextGhostFailureLogFrame;
 
         private sealed class GhostRendererState
         {
@@ -36,11 +43,36 @@ namespace ObjectDropLaserMod.Components
             public Material Material;
         }
 
+        private readonly struct BeamFrameData
+        {
+            public readonly PhysGrabObject HeldObject;
+            public readonly Vector3 BeamStart;
+            public readonly Vector3 BeamHitPoint;
+            public readonly bool ShouldShowGhost;
+            public readonly bool ShouldRenderOverlay;
+
+            public BeamFrameData(
+                PhysGrabObject heldObject,
+                Vector3 beamStart,
+                Vector3 beamHitPoint,
+                bool shouldShowGhost,
+                bool shouldRenderOverlay)
+            {
+                HeldObject = heldObject;
+                BeamStart = beamStart;
+                BeamHitPoint = beamHitPoint;
+                ShouldShowGhost = shouldShowGhost;
+                ShouldRenderOverlay = shouldRenderOverlay;
+            }
+        }
+
         /// <summary>
         /// Initializes a new instance of the drop beam updater.
         /// </summary>
         public DropLaserBeam(
             LineRenderer dropBeamLine,
+            LineRenderer grabBeamOverlayLine,
+            LineRenderer dropBeamOverlayLine,
             Light dropBeamLight,
             GameObject sourceBeamObject,
             LineRenderer sourceBeamLine,
@@ -48,11 +80,15 @@ namespace ObjectDropLaserMod.Components
             HashSet<string> ignoredCartParts)
         {
             this.dropBeamLine = dropBeamLine;
+            this.grabBeamOverlayLine = grabBeamOverlayLine;
+            this.dropBeamOverlayLine = dropBeamOverlayLine;
             this.dropBeamLight = dropBeamLight;
             this.sourceBeamObject = sourceBeamObject;
             this.sourceBeamLine = sourceBeamLine;
             this.playerGrabber = playerGrabber;
             this.ignoredCartParts = ignoredCartParts;
+            saga = new SagaOrchestrator(Plugin.log);
+            overlayService = new DropLaserOverlayService();
         }
 
         /// <summary>
@@ -66,34 +102,49 @@ namespace ObjectDropLaserMod.Components
             Material sourceMaterial = sourceBeamLine.material;
             Material dropMaterial = dropBeamLine.material;
             Color laserColor = SyncBeamAppearance(sourceMaterial, dropMaterial);
-            currentLaserColor = laserColor;
 
-            PhysGrabObject heldObject = playerGrabber.GetGrabbedObject();
-            if (heldObject == null)
+            if (!TryBuildFrameData(out BeamFrameData frameData))
             {
                 HideBeamAndGhost();
                 return;
             }
 
-            Vector3 beamStart = CalculateBeamOrigin(heldObject);
-            Vector3 beamHitPoint = beamStart + Vector3.down * DefaultDowncastDistance;
-            ResolveBeamHitPoint(beamStart, heldObject, ref beamHitPoint, out bool hitTrackedCartObject);
+            bool hasGhostStop = false;
+            Vector3 ghostStopPoint = Vector3.zero;
 
-            bool isInsideCartVolume = CartStateAccessors.IsPointInsideAnyCartInCartBounds(beamHitPoint);
-            int ghostPreviewMode = Mathf.Clamp(Plugin.GhostPreviewMode.Value, 0, 2);
-            bool shouldShowGhost = ghostPreviewMode == 2 || (ghostPreviewMode == 1 && (hitTrackedCartObject || isInsideCartVolume));
-            bool hasGhostStop = UpdateGhostPreview(heldObject, shouldShowGhost, out Vector3 ghostStopPoint);
-            Vector3 targetStopPoint = hasGhostStop ? ghostStopPoint : beamHitPoint;
-            float clampedBeamEndY = Mathf.Min(targetStopPoint.y, beamStart.y - MinimumBeamLength);
-            Vector3 beamEnd = new Vector3(beamStart.x, clampedBeamEndY, beamStart.z);
+            saga.Execute(
+                "ghost",
+                () =>
+                {
+                    hasGhostStop = UpdateGhostPreview(frameData.HeldObject, frameData.ShouldShowGhost, out ghostStopPoint);
+                },
+                () => SetGhostVisible(false));
 
-            dropBeamLine.enabled = true;
-            dropBeamLine.SetPosition(0, beamStart);
-            dropBeamLine.SetPosition(1, beamEnd);
+            saga.Execute(
+                "beam",
+                () =>
+                {
+                    Vector3 targetStopPoint = hasGhostStop ? ghostStopPoint : frameData.BeamHitPoint;
+                    UpdateBeamVisuals(frameData.BeamStart, targetStopPoint, laserColor);
+                },
+                () =>
+                {
+                    dropBeamLine.enabled = false;
+                    dropBeamLight.enabled = false;
+                });
 
-            dropBeamLight.transform.position = beamEnd;
-            dropBeamLight.color = new Color(laserColor.r, laserColor.g, laserColor.b, 1f);
-            dropBeamLight.enabled = true;
+            saga.Execute(
+                "overlay",
+                () =>
+                {
+                    overlayService.SyncInnerOverlay(grabBeamOverlayLine, sourceBeamLine, frameData.ShouldRenderOverlay);
+                    overlayService.SyncInnerOverlay(dropBeamOverlayLine, dropBeamLine, frameData.ShouldRenderOverlay);
+                },
+                () =>
+                {
+                    overlayService.Disable(grabBeamOverlayLine);
+                    overlayService.Disable(dropBeamOverlayLine);
+                });
         }
 
         /// <summary>
@@ -114,10 +165,41 @@ namespace ObjectDropLaserMod.Components
             return false;
         }
 
+        private bool TryBuildFrameData(out BeamFrameData frameData)
+        {
+            frameData = default;
+
+            PhysGrabObject heldObject = playerGrabber.GetGrabbedObject();
+            if (heldObject == null)
+                return false;
+
+            Vector3 beamStart = CalculateBeamOrigin(heldObject);
+            Vector3 beamHitPoint = beamStart + Vector3.down * DefaultDowncastDistance;
+            ResolveBeamHitPoint(beamStart, heldObject, ref beamHitPoint, out bool hitTrackedCartObject);
+
+            bool isInsideCartVolume = CartStateAccessors.IsPointInsideAnyCartInCartBounds(beamHitPoint);
+            bool isAboveCartVolume = CartStateAccessors.IsPointAboveAnyCartInCartBounds(beamStart);
+            bool isAboveCart = hitTrackedCartObject || isInsideCartVolume || isAboveCartVolume;
+
+            int ghostPreviewMode = Mathf.Clamp(Plugin.GhostPreviewMode.Value, 0, 2);
+            bool shouldShowGhost = ghostPreviewMode == 2 || (ghostPreviewMode == 1 && isAboveCart);
+            bool shouldRenderOverlay = Plugin.EnableDropBeamInnerWhite.Value && isAboveCart;
+
+            frameData = new BeamFrameData(
+                heldObject,
+                beamStart,
+                beamHitPoint,
+                shouldShowGhost,
+                shouldRenderOverlay);
+            return true;
+        }
+
         private void HideBeamAndGhost()
         {
             dropBeamLine.enabled = false;
             dropBeamLight.enabled = false;
+            overlayService.Disable(grabBeamOverlayLine);
+            overlayService.Disable(dropBeamOverlayLine);
             SetGhostVisible(false);
         }
 
@@ -132,29 +214,63 @@ namespace ObjectDropLaserMod.Components
             }
 
             Color resolvedColor = DropLaserColorManager.GetFinalLaserColor(sourceMaterial);
-            SyncMaterialFromGrabBeam(dropMaterial, sourceMaterial);
+            DropLaserMaterialService.SyncFromSourceBeam(dropMaterial, sourceMaterial);
             SetLineColor(resolvedColor);
-            WriteColor(dropMaterial, resolvedColor);
+            DropLaserMaterialService.WriteColor(dropMaterial, resolvedColor);
             return resolvedColor;
         }
 
         private void SetLineColor(Color color)
         {
-            dropBeamLine.startColor = new Color(color.r, color.g, color.b, dropBeamLine.startColor.a);
-            dropBeamLine.endColor = new Color(color.r, color.g, color.b, dropBeamLine.endColor.a);
+            float middleAlpha = 1f;
+            float edgeAlpha = EndTaperAlphaMultiplier;
+
+            Gradient gradient = new Gradient();
+            gradient.SetKeys(
+                new[]
+                {
+                    new GradientColorKey(new Color(color.r, color.g, color.b, 1f), 0f),
+                    new GradientColorKey(new Color(color.r, color.g, color.b, 1f), EndTaperPortion),
+                    new GradientColorKey(new Color(color.r, color.g, color.b, 1f), 1f - EndTaperPortion),
+                    new GradientColorKey(new Color(color.r, color.g, color.b, 1f), 1f)
+                },
+                new[]
+                {
+                    new GradientAlphaKey(edgeAlpha, 0f),
+                    new GradientAlphaKey(middleAlpha, EndTaperPortion),
+                    new GradientAlphaKey(middleAlpha, 1f - EndTaperPortion),
+                    new GradientAlphaKey(edgeAlpha, 1f)
+                });
+
+            dropBeamLine.colorGradient = gradient;
         }
 
         private Vector3 CalculateBeamOrigin(PhysGrabObject heldObject)
         {
-            Collider collider = heldObject.GetComponentInChildren<Collider>();
-            if (collider == null)
-                return heldObject.transform.position;
+            return CalculateBeamOrigin(heldObject.gameObject);
+        }
 
-            Bounds bounds = collider.bounds;
+        private Vector3 CalculateBeamOrigin(GameObject targetObject)
+        {
+            Bounds bounds = GetObjectBounds(targetObject);
             Vector3 beamStart = bounds.center;
             beamStart.y += LaserOriginVerticalOffset;
             beamStart.y -= bounds.extents.y;
             return beamStart;
+        }
+
+        private void UpdateBeamVisuals(Vector3 beamStart, Vector3 targetStopPoint, Color laserColor)
+        {
+            float clampedBeamEndY = Mathf.Min(targetStopPoint.y, beamStart.y - MinimumBeamLength);
+            Vector3 beamEnd = new Vector3(beamStart.x, clampedBeamEndY, beamStart.z);
+
+            dropBeamLine.enabled = true;
+            dropBeamLine.SetPosition(0, beamStart);
+            dropBeamLine.SetPosition(1, beamEnd);
+
+            dropBeamLight.transform.position = beamEnd;
+            dropBeamLight.color = new Color(laserColor.r, laserColor.g, laserColor.b, 1f);
+            dropBeamLight.enabled = true;
         }
 
         private void ResolveBeamHitPoint(Vector3 beamStart, PhysGrabObject heldObject, ref Vector3 beamHitPoint, out bool hitTrackedCartObject)
@@ -217,6 +333,12 @@ namespace ObjectDropLaserMod.Components
 
                 if (!TryUpdateGhostTransform(heldObject))
                 {
+                    if (Time.frameCount >= nextGhostFailureLogFrame)
+                    {
+                        Plugin.log.LogWarning("[DropLaser] Ghost transform update failed; hiding ghost for this frame.");
+                        nextGhostFailureLogFrame = Time.frameCount + 120;
+                    }
+
                     SetGhostVisible(false);
                     return false;
                 }
@@ -229,12 +351,41 @@ namespace ObjectDropLaserMod.Components
 
         private bool TryUpdateGhostTransform(PhysGrabObject heldObject)
         {
-            Bounds heldBounds = GetObjectBounds(heldObject.gameObject);
-            float rayStartY = heldBounds.min.y + GhostRayStartOffset;
-            Vector3 rayStart = new Vector3(heldBounds.center.x, rayStartY, heldBounds.center.z);
+            Rigidbody heldRigidbody = heldObject.rb != null ? heldObject.rb : heldObject.GetComponent<Rigidbody>();
+            if (heldRigidbody != null)
+            {
+                RaycastHit[] sweepHits = heldRigidbody.SweepTestAll(
+                    Vector3.down,
+                    Plugin.LaserMaxDistance.Value,
+                    QueryTriggerInteraction.Collide);
 
+                bool foundSweepHit = false;
+                float nearestDistance = float.MaxValue;
+                for (int i = 0; i < sweepHits.Length; i++)
+                {
+                    RaycastHit hit = sweepHits[i];
+                    if (!IsValidBeamHit(hit, heldObject))
+                        continue;
+
+                    if (hit.distance < nearestDistance)
+                    {
+                        nearestDistance = hit.distance;
+                        foundSweepHit = true;
+                    }
+                }
+
+                if (!foundSweepHit)
+                    return false;
+
+                Vector3 ghostPositionFromSweep = heldObject.transform.position + Vector3.down * nearestDistance;
+                ghostRoot.transform.SetPositionAndRotation(ghostPositionFromSweep, heldObject.transform.rotation);
+                return true;
+            }
+
+            Bounds heldBounds = GetObjectBounds(heldObject.gameObject);
+            Vector3 castStart = new Vector3(heldBounds.center.x, heldBounds.min.y + GhostRayStartOffset, heldBounds.center.z);
             int hitCount = Physics.RaycastNonAlloc(
-                rayStart,
+                castStart,
                 Vector3.down,
                 raycastHitBuffer,
                 Plugin.LaserMaxDistance.Value,
@@ -242,24 +393,24 @@ namespace ObjectDropLaserMod.Components
                 QueryTriggerInteraction.Collide);
 
             bool foundHit = false;
-            float highestY = float.MinValue;
+            float bestSurfaceY = float.MinValue;
             for (int i = 0; i < hitCount; i++)
             {
                 RaycastHit hit = raycastHitBuffer[i];
                 if (!IsValidBeamHit(hit, heldObject))
                     continue;
 
-                if (!foundHit || hit.point.y > highestY)
+                if (!foundHit || hit.point.y > bestSurfaceY)
                 {
                     foundHit = true;
-                    highestY = hit.point.y;
+                    bestSurfaceY = hit.point.y;
                 }
             }
 
             if (!foundHit)
                 return false;
 
-            float dropDistance = Mathf.Max(0f, heldBounds.min.y - highestY);
+            float dropDistance = Mathf.Max(0f, heldBounds.min.y - bestSurfaceY);
             Vector3 ghostPosition = heldObject.transform.position - Vector3.up * dropDistance;
             ghostRoot.transform.SetPositionAndRotation(ghostPosition, heldObject.transform.rotation);
             return true;
@@ -270,12 +421,14 @@ namespace ObjectDropLaserMod.Components
             if (ghostRoot == null)
                 return Vector3.zero;
 
-            Bounds ghostBounds = GetObjectBounds(ghostRoot);
-            return new Vector3(ghostBounds.center.x, ghostBounds.max.y, ghostBounds.center.z);
+            return CalculateBeamOrigin(ghostRoot);
         }
 
         private void EnsureGhostForHeldObject(PhysGrabObject heldObject)
         {
+            if (heldObject == null)
+                return;
+
             if (heldObject == ghostSource && ghostRoot != null)
                 return;
 
@@ -304,7 +457,17 @@ namespace ObjectDropLaserMod.Components
                     continue;
                 }
 
-                Material material = new Material(dropBeamLine.material);
+                Material sourceMaterial = sourceBeamLine != null && sourceBeamLine.material != null
+                    ? sourceBeamLine.material
+                    : dropBeamLine != null ? dropBeamLine.material : renderer.sharedMaterial;
+                if (sourceMaterial == null)
+                {
+                    Plugin.log.LogWarning($"[DropLaser] Ghost renderer '{renderer.name}' has no source material; skipping.");
+                    renderer.enabled = false;
+                    continue;
+                }
+
+                Material material = new Material(sourceMaterial);
                 renderer.material = material;
 
                 ghostRenderers.Add(new GhostRendererState
@@ -329,17 +492,18 @@ namespace ObjectDropLaserMod.Components
             }
 
             ghostRoot.SetActive(true);
-            Material beamMaterial = dropBeamLine.material;
-            Color ghostTintColor = ResolveGhostColor();
+            Material beamMaterial = sourceBeamLine != null && sourceBeamLine.material != null
+                ? sourceBeamLine.material
+                : dropBeamLine.material;
             float ghostOpacity = Mathf.Clamp01(Plugin.GhostOpacity.Value);
-            float ghostEmissionIntensity = Mathf.Max(0f, Plugin.GhostEmissionIntensity.Value);
+
             foreach (GhostRendererState rendererState in ghostRenderers)
             {
                 if (rendererState == null || rendererState.Renderer == null || rendererState.Material == null)
                     continue;
 
-                SyncMaterialFromGrabBeam(rendererState.Material, beamMaterial);
-                ApplyGhostMaterialAppearance(rendererState.Material, ghostTintColor, ghostOpacity, ghostEmissionIntensity);
+                DropLaserMaterialService.MirrorMaterialAppearance(rendererState.Material, beamMaterial);
+                ApplyGhostOpacity(rendererState.Material, ghostOpacity);
             }
         }
 
@@ -374,75 +538,40 @@ namespace ObjectDropLaserMod.Components
             if (target == null || sourceLaserMaterial == null)
                 return;
 
-            if (sourceLaserMaterial.HasProperty("_MainTex") && target.HasProperty("_MainTex"))
+            bool hasMainTextureOnBoth = sourceLaserMaterial.HasProperty("_MainTex") && target.HasProperty("_MainTex");
+            if (hasMainTextureOnBoth)
+            {
                 target.SetTexture("_MainTex", sourceLaserMaterial.GetTexture("_MainTex"));
-
-            target.mainTextureOffset = sourceLaserMaterial.mainTextureOffset;
-            target.mainTextureScale = sourceLaserMaterial.mainTextureScale;
+                target.mainTextureOffset = sourceLaserMaterial.mainTextureOffset;
+                target.mainTextureScale = sourceLaserMaterial.mainTextureScale;
+            }
 
             Color materialColor = new Color(color.r, color.g, color.b, alpha);
-            WriteColor(target, materialColor);
+            DropLaserMaterialService.WriteColor(target, materialColor);
 
             if (target.HasProperty("_EmissionColor"))
                 target.SetColor("_EmissionColor", new Color(color.r, color.g, color.b, emissionScale));
         }
 
-        private static void SyncMaterialFromGrabBeam(Material target, Material source)
+        private static void ApplyGhostOpacity(Material material, float opacity)
         {
-            if (target == null || source == null)
+            if (material == null)
                 return;
 
-            if (source.HasProperty("_MainTex") && target.HasProperty("_MainTex"))
-                target.SetTexture("_MainTex", source.GetTexture("_MainTex"));
+            float clampedOpacity = Mathf.Clamp01(opacity);
 
-            target.mainTextureOffset = source.mainTextureOffset;
-            target.mainTextureScale = source.mainTextureScale;
-
-            if (source.HasProperty("_Color") && target.HasProperty("_Color"))
-                target.SetColor("_Color", source.GetColor("_Color"));
-            if (source.HasProperty("_BaseColor") && target.HasProperty("_BaseColor"))
-                target.SetColor("_BaseColor", source.GetColor("_BaseColor"));
-            if (source.HasProperty("_EmissionColor") && target.HasProperty("_EmissionColor"))
-                target.SetColor("_EmissionColor", source.GetColor("_EmissionColor"));
-        }
-
-        private static void WriteColor(Material material, Color color)
-        {
             if (material.HasProperty("_Color"))
+            {
+                Color color = material.GetColor("_Color");
+                color.a = clampedOpacity;
                 material.SetColor("_Color", color);
+            }
 
             if (material.HasProperty("_BaseColor"))
-                material.SetColor("_BaseColor", color);
-        }
-
-        private Color ResolveGhostColor()
-        {
-            if (Plugin.UseCustomGhostColor.Value)
-                return Plugin.CustomGhostColor.Value;
-
-            return currentLaserColor;
-        }
-
-        private static void ApplyGhostMaterialAppearance(Material material, Color tintColor, float opacity, float emissionIntensity)
-        {
-            material.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
-            material.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
-            material.SetInt("_ZWrite", 0);
-            material.DisableKeyword("_ALPHATEST_ON");
-            material.EnableKeyword("_ALPHABLEND_ON");
-            material.DisableKeyword("_ALPHAPREMULTIPLY_ON");
-
-            Color ghostColor = new Color(tintColor.r, tintColor.g, tintColor.b, opacity);
-            WriteColor(material, ghostColor);
-
-            if (material.HasProperty("_EmissionColor"))
             {
-                material.EnableKeyword("_EMISSION");
-                material.SetColor("_EmissionColor", new Color(
-                    tintColor.r * emissionIntensity,
-                    tintColor.g * emissionIntensity,
-                    tintColor.b * emissionIntensity,
-                    1f));
+                Color baseColor = material.GetColor("_BaseColor");
+                baseColor.a = clampedOpacity;
+                material.SetColor("_BaseColor", baseColor);
             }
         }
 

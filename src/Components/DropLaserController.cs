@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using ObjectDropLaserMod.Systems;
 using ObjectDropLaserMod.Utils;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -21,6 +22,8 @@ namespace ObjectDropLaserMod.Components
         };
 
         private LineRenderer dropBeamLine;
+        private LineRenderer grabBeamOverlayLine;
+        private LineRenderer dropBeamOverlayLine;
         private Light dropBeamLight;
         private DropLaserBeam dropLaserBeam;
 
@@ -60,6 +63,8 @@ namespace ObjectDropLaserMod.Components
             {
                 dropLaserBeam = new DropLaserBeam(
                     dropBeamLine,
+                    grabBeamOverlayLine,
+                    dropBeamOverlayLine,
                     dropBeamLight,
                     sourceBeamObject,
                     sourceBeamLine,
@@ -76,7 +81,14 @@ namespace ObjectDropLaserMod.Components
             if (!isActive || dropLaserBeam == null)
                 return;
 
-            dropLaserBeam.UpdateBeam();
+            try
+            {
+                dropLaserBeam.UpdateBeam();
+            }
+            catch (System.Exception ex)
+            {
+                Plugin.log.LogError($"[DropLaser] Beam subsystem failure (isolated): {ex}");
+            }
         }
 
         /// <summary>
@@ -85,8 +97,14 @@ namespace ObjectDropLaserMod.Components
         public void Toggle()
         {
             isActive = !isActive;
-            dropBeamLine.enabled = isActive;
-            dropBeamLight.enabled = isActive;
+            if (dropBeamLine != null)
+                dropBeamLine.enabled = isActive;
+            if (dropBeamLight != null)
+                dropBeamLight.enabled = isActive;
+            if (!isActive && grabBeamOverlayLine != null)
+                grabBeamOverlayLine.enabled = false;
+            if (!isActive && dropBeamOverlayLine != null)
+                dropBeamOverlayLine.enabled = false;
             DropLaserLogger.Info($"[DropLaser] Laser toggled {(isActive ? "ON" : "OFF")}");
         }
 
@@ -95,8 +113,14 @@ namespace ObjectDropLaserMod.Components
         /// </summary>
         public void DisableLaser()
         {
-            dropBeamLine.enabled = false;
-            dropBeamLight.enabled = false;
+            if (dropBeamLine != null)
+                dropBeamLine.enabled = false;
+            if (dropBeamLight != null)
+                dropBeamLight.enabled = false;
+            if (grabBeamOverlayLine != null)
+                grabBeamOverlayLine.enabled = false;
+            if (dropBeamOverlayLine != null)
+                dropBeamOverlayLine.enabled = false;
             isActive = false;
             dropLaserBeam?.Dispose();
         }
@@ -114,34 +138,67 @@ namespace ObjectDropLaserMod.Components
         private void SetupLineRenderer()
         {
             dropBeamLine = gameObject.AddComponent<LineRenderer>();
-            dropBeamLine.positionCount = 2;
-            dropBeamLine.shadowCastingMode = ShadowCastingMode.Off;
-            dropBeamLine.receiveShadows = false;
-            dropBeamLine.useWorldSpace = true;
-            dropBeamLine.textureMode = LineTextureMode.Stretch;
+            ConfigureLineRenderer(dropBeamLine);
 
             Shader shader = Shader.Find("Particles/Standard Unlit")
                 ?? Shader.Find("Unlit/Color")
                 ?? Shader.Find("Sprites/Default");
 
-            Material material = new Material(shader);
-            material.SetFloat("_Mode", 2f);
-            material.SetInt("_SrcBlend", (int)BlendMode.SrcAlpha);
-            material.SetInt("_DstBlend", (int)BlendMode.OneMinusSrcAlpha);
-            material.SetInt("_ZWrite", 0);
-            material.DisableKeyword("_ALPHATEST_ON");
-            material.EnableKeyword("_ALPHABLEND_ON");
-            material.DisableKeyword("_ALPHAPREMULTIPLY_ON");
-            material.renderQueue = 3000;
+            if (shader == null)
+            {
+                Plugin.log.LogError("[DropLaser] Failed to find a line renderer shader. Disabling controller setup.");
+                return;
+            }
 
-            dropBeamLine.material = material;
-            dropBeamLine.startWidth = Plugin.LaserStartWidth.Value;
-            dropBeamLine.endWidth = Plugin.LaserEndWidth.Value;
+            dropBeamLine.material = DropLaserMaterialService.CreateTransparentLineMaterial(shader);
+            float laserStartWidth = Plugin.LaserStartWidth?.Value ?? 0.04f;
+            float laserEndWidth = Plugin.LaserEndWidth?.Value ?? 0.03f;
+            dropBeamLine.startWidth = laserStartWidth;
+            dropBeamLine.endWidth = laserEndWidth;
 
             Color seedColor = Color.red;
             dropBeamLine.startColor = seedColor;
             dropBeamLine.endColor = seedColor;
             dropBeamLine.enabled = false;
+
+            try
+            {
+                grabBeamOverlayLine = CreateOverlayLine("GrabBeamOverlayLine", shader, laserStartWidth, laserEndWidth);
+                dropBeamOverlayLine = CreateOverlayLine("DropBeamOverlayLine", shader, laserStartWidth, laserEndWidth);
+            }
+            catch (System.Exception ex)
+            {
+                grabBeamOverlayLine = null;
+                dropBeamOverlayLine = null;
+                Plugin.log.LogWarning($"[DropLaser] Overlay beam setup failed; continuing without overlay: {ex.Message}");
+            }
+        }
+
+        private void ConfigureLineRenderer(LineRenderer lineRenderer)
+        {
+            lineRenderer.positionCount = 2;
+            lineRenderer.shadowCastingMode = ShadowCastingMode.Off;
+            lineRenderer.receiveShadows = false;
+            lineRenderer.useWorldSpace = true;
+            lineRenderer.textureMode = LineTextureMode.Stretch;
+            lineRenderer.numCapVertices = 8;
+            lineRenderer.numCornerVertices = 2;
+        }
+
+        private LineRenderer CreateOverlayLine(string objectName, Shader shader, float baseStartWidth, float baseEndWidth)
+        {
+            GameObject overlayObject = new GameObject(objectName);
+            overlayObject.transform.SetParent(transform, false);
+
+            LineRenderer overlayLine = overlayObject.AddComponent<LineRenderer>();
+            ConfigureLineRenderer(overlayLine);
+            overlayLine.material = DropLaserMaterialService.CreateTransparentLineMaterial(shader);
+            overlayLine.startWidth = baseStartWidth * 0.35f;
+            overlayLine.endWidth = baseEndWidth * 0.35f;
+            overlayLine.startColor = Color.white;
+            overlayLine.endColor = Color.white;
+            overlayLine.enabled = false;
+            return overlayLine;
         }
 
         private void SetupLaserLight()
@@ -205,6 +262,7 @@ namespace ObjectDropLaserMod.Components
             if (sourceBeamLine.material != null)
             {
                 dropBeamLine.material = new Material(sourceBeamLine.material);
+                DropLaserMaterialService.ConfigureTransparentMaterial(dropBeamLine.material);
                 DropLaserLogger.Info($"[DropLaser] Cloned grab beam material shader: {dropBeamLine.material.shader?.name}");
             }
         }
