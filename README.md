@@ -23,6 +23,19 @@ A precise object landing assistant for the game **REPO**.
 
 ---
 
+## Screenshots & Video
+
+*Note: The green grab beam is from my other mod, [DynamicRepoGrabBeam](https://thunderstore.io/c/repo/p/REPOWorkshop/DynamicRepoGrabBeam/).*
+
+
+![Tree dropping into cart](media/tree-dropping-into-cart.png)
+
+![Medic dropping into cart](media/medic-dropping-into-cart.png)
+
+[![Watch gameplay video](media/dropping-vase-cover-image.png)](media/dropping-vase.mp4)
+
+---
+
 ## Installation
 
 1. Install [BepInEx](https://github.com/BepInEx/BepInEx) for REPO if you haven't already.

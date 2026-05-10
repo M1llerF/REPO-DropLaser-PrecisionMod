@@ -91,7 +91,7 @@ namespace ObjectDropLaserMod
             LaserMaxDistance = Config.Bind("Laser Settings", "LaserMaxDistance", 500f,
                 "Maximum distance the laser can scan downward.");
 
-            LaserLightIntensity = Config.Bind("Laser Settings", "LaserLightIntensity", 2.75f,
+            LaserLightIntensity = Config.Bind("Laser Settings", "LaserLightIntensity", 5.5f,
                 "Intensity (brightness) of the laser glow light.");
 
             LaserLightRange = Config.Bind("Laser Settings", "LaserLightRange", 0.5f,
