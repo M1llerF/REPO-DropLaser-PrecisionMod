@@ -31,6 +31,7 @@ namespace ObjectDropLaserMod
         public static ConfigEntry<float> LaserLightRange;
         public static ConfigEntry<string> ToggleLaserKey;
         public static ConfigEntry<bool> AutoEnableOnGrab;
+        public static ConfigEntry<bool> EnableDropBeamInnerWhite;
         public static ConfigEntry<int> GhostPreviewMode;
         public static ConfigEntry<bool> UseCustomGhostColor;
         public static ConfigEntry<Color> CustomGhostColor;
@@ -101,6 +102,9 @@ namespace ObjectDropLaserMod
 
             AutoEnableOnGrab = Config.Bind("Laser Settings", "AutoEnableOnGrab", true,
                 "If true, the laser will automatically enable when the player grabs an object.");
+
+            EnableDropBeamInnerWhite = Config.Bind("Laser Settings", "EnableDropBeamInnerWhite", true,
+                "If true, shows a white inner core in the drop beam when above cart bounds.");
 
             GhostPreviewMode = Config.Bind("Laser Settings", "GhostPreviewMode", 1,
                 "Ghost preview behavior: 0 = never, 1 = on cart, 2 = always.");

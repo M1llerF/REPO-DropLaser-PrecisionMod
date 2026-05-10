@@ -93,6 +93,30 @@ namespace ObjectDropLaserMod.Utils
             return false;
         }
 
+        /// <summary>
+        /// Checks whether a world point is above any cart "In Cart" volume footprint (X/Z overlap and Y above top).
+        /// </summary>
+        public static bool IsPointAboveAnyCartInCartBounds(Vector3 point)
+        {
+            RefreshCartVolumeCacheIfNeeded();
+
+            for (int i = 0; i < CachedCartInCartVolumes.Count; i++)
+            {
+                BoxCollider box = CachedCartInCartVolumes[i];
+                if (box == null)
+                    continue;
+
+                Bounds bounds = box.bounds;
+                bool withinX = point.x >= bounds.min.x && point.x <= bounds.max.x;
+                bool withinZ = point.z >= bounds.min.z && point.z <= bounds.max.z;
+                bool aboveTop = point.y >= bounds.max.y;
+                if (withinX && withinZ && aboveTop)
+                    return true;
+            }
+
+            return false;
+        }
+
         private static void RefreshCartVolumeCacheIfNeeded()
         {
             if (Time.time < nextCartVolumeRefreshTime)
