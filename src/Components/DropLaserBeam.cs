@@ -12,6 +12,7 @@ namespace ObjectDropLaserMod.Components
         private const float DefaultDowncastDistance = 50f;
         private const float LaserOriginVerticalOffset = 0.05f;
         private const float GhostRayStartOffset = 0.02f;
+        private const float MinimumBeamLength = 0.01f;
         private const int RaycastBufferSize = 64;
         private const float FallbackBoundsSize = 0.1f;
 
@@ -83,7 +84,8 @@ namespace ObjectDropLaserMod.Components
             bool shouldShowGhost = ghostPreviewMode == 2 || (ghostPreviewMode == 1 && (hitTrackedCartObject || isInsideCartVolume));
             bool hasGhostStop = UpdateGhostPreview(heldObject, shouldShowGhost, out Vector3 ghostStopPoint);
             Vector3 targetStopPoint = hasGhostStop ? ghostStopPoint : beamHitPoint;
-            Vector3 beamEnd = new Vector3(beamStart.x, targetStopPoint.y, beamStart.z);
+            float clampedBeamEndY = Mathf.Min(targetStopPoint.y, beamStart.y - MinimumBeamLength);
+            Vector3 beamEnd = new Vector3(beamStart.x, clampedBeamEndY, beamStart.z);
 
             dropBeamLine.enabled = true;
             dropBeamLine.SetPosition(0, beamStart);
@@ -257,7 +259,7 @@ namespace ObjectDropLaserMod.Components
             if (!foundHit)
                 return false;
 
-            float dropDistance = heldBounds.min.y - highestY;
+            float dropDistance = Mathf.Max(0f, heldBounds.min.y - highestY);
             Vector3 ghostPosition = heldObject.transform.position - Vector3.up * dropDistance;
             ghostRoot.transform.SetPositionAndRotation(ghostPosition, heldObject.transform.rotation);
             return true;
