@@ -13,7 +13,7 @@ namespace ObjectDropLaserMod
     [BepInPlugin("com.repo.droplaser", "Drop Laser Mod", "1.0.9")]
     public class Plugin : BaseUnityPlugin
     {
-        private const string ConfigSchemaVersion = "2026-05-10.1";
+        private const string ConfigSchemaVersion = "2026-05-09.2";
 
         // Global logger instance.
         public static ManualLogSource log;
@@ -82,7 +82,7 @@ namespace ObjectDropLaserMod
             LaserMaxDistance = Config.Bind("Laser Settings", "LaserMaxDistance", 500f,
                 "Maximum distance the laser can scan downward.");
 
-            LaserLightIntensity = Config.Bind("Laser Settings", "LaserLightIntensity", 5.5f,
+            LaserLightIntensity = Config.Bind("Laser Settings", "LaserLightIntensity", 2.75f,
                 "Intensity (brightness) of the laser glow light.");
 
             LaserLightRange = Config.Bind("Laser Settings", "LaserLightRange", 0.5f,
