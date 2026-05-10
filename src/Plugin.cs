@@ -2,6 +2,7 @@ using BepInEx;
 using BepInEx.Configuration;
 using BepInEx.Logging;
 using HarmonyLib;
+using ObjectDropLaserMod.Utils;
 using UnityEngine;
 
 namespace ObjectDropLaserMod
@@ -13,7 +14,7 @@ namespace ObjectDropLaserMod
     [BepInPlugin("com.repo.droplaser", "Drop Laser Mod", "1.0.9")]
     public class Plugin : BaseUnityPlugin
     {
-        private const string ConfigSchemaVersion = "2026-05-09.2";
+        private const string ConfigSchemaVersion = "2026-05-10.2";
 
         // Global logger instance.
         public static ManualLogSource log;
@@ -37,6 +38,7 @@ namespace ObjectDropLaserMod
         public static ConfigEntry<float> GhostEmissionIntensity;
         public static ConfigEntry<int> GhostUpdateFrameInterval;
         public static ConfigEntry<string> AppliedConfigSchemaVersion;
+        public static ConfigEntry<string> PendingMigrationBackupPath;
 
         /// <summary>
         /// Called automatically by BepInEx on game load.
@@ -51,6 +53,12 @@ namespace ObjectDropLaserMod
             BindGeneralConfig();
             BindLaserConfig();
             BindInternalConfig();
+            ConfigMigrationService.ApplyIfOutdated(
+                Config,
+                AppliedConfigSchemaVersion,
+                PendingMigrationBackupPath,
+                ConfigSchemaVersion,
+                log);
         }
 
         private void BindGeneralConfig()
@@ -119,6 +127,12 @@ namespace ObjectDropLaserMod
                 "Internal",
                 "AppliedConfigSchemaVersion",
                 ConfigSchemaVersion,
+                "");
+
+            PendingMigrationBackupPath = Config.Bind(
+                "Internal",
+                "PendingMigrationBackupPath",
+                string.Empty,
                 "");
         }
     }
