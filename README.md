@@ -9,9 +9,15 @@ A precise object landing assistant for the game **REPO**.
 
 - Adds a **downward-pointing laser** from your grabbed objects.
 - Helps visually predict **where objects will land** when dropped.
+- Optional **ghost landing preview** with modes:
+  - `Never`
+  - `Only on cart`
+  - `Always`
 - **Customizable colors**: match your beam color or define your own.
 - **Fully configurable** beam width, brightness, and range.
+- **Ghost preview tuning**: color, opacity, emission intensity, and update interval.
 - **Auto-activation** option: laser turns on automatically when grabbing an object.
+- **Config migration support** keeps prior settings on newer plugin schema versions.
 - **Multiplayer compatible**: laser is shown only for your local player.
 - **Efficiently optimized** for minimal performance impact.
 
@@ -44,6 +50,11 @@ You can customize:
 - **Laser Light**:
   - Glow brightness (intensity).
   - Glow range.
+- **Ghost Preview**:
+  - Enable mode (never/on-cart/always).
+  - Use laser color or set a custom ghost color.
+  - Opacity and emission intensity.
+  - Update frame interval (performance vs smoothness).
 - **Auto-Enable**:
   - Automatically turns the laser on when grabbing an object if you want.
 

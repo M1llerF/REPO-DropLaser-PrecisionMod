@@ -1,5 +1,29 @@
 # Changelog - REPO-DropLaser-LandingLaserMod
 
+## [1.1.0]
+### Added
+- Ghost preview landing mode with configurable behavior:
+  - `0 = never`
+  - `1 = on cart`
+  - `2 = always`
+- New ghost preview tuning options:
+  - Custom ghost color support.
+  - Ghost opacity setting.
+  - Ghost emission intensity setting.
+  - Ghost update frame interval setting.
+- Config migration support so existing user settings are preserved across schema changes/updates.
+- Cart state accessor helpers to improve landing/preview decision logic.
+
+### Changed
+- Reworked drop beam update flow for more stable ghost preview behavior.
+- Added vertical lock handling during preview updates.
+- Reduced default laser light intensity by 50% for a less overpowering glow.
+- Refactored controller lifecycle for cleaner activation/deactivation handling.
+
+### Fixed
+- Prevented the laser from rendering above objects during object intersections.
+- Fixed logger info output to correctly print the provided message.
+
 ## [1.0.0]
 ### Added
 - Initial public release.
