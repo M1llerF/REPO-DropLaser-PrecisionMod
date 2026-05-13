@@ -38,6 +38,11 @@ namespace ObjectDropLaserMod
         public static ConfigEntry<float> GhostOpacity;
         public static ConfigEntry<float> GhostEmissionIntensity;
         public static ConfigEntry<int> GhostUpdateFrameInterval;
+        public static ConfigEntry<string> HighlightCycleForwardKey;
+        public static ConfigEntry<string> HighlightCycleBackwardKey;
+        public static ConfigEntry<string> DebugStopOverrideKey;
+        public static ConfigEntry<bool> EnableDebugVisuals;
+        public static ConfigEntry<bool> EnableHitDiagnostics;
         public static ConfigEntry<string> AppliedConfigSchemaVersion;
         public static ConfigEntry<string> PendingMigrationBackupPath;
 
@@ -123,6 +128,21 @@ namespace ObjectDropLaserMod
 
             GhostUpdateFrameInterval = Config.Bind("Laser Settings", "GhostUpdateFrameInterval", 1,
                 "Number of frames between ghost position updates. Higher values reduce update frequency.");
+
+            HighlightCycleForwardKey = Config.Bind("Laser Settings", "HighlightCycleForwardKey", "UpArrow",
+                "Key used in debug mode to cycle cart highlight layers forward.");
+
+            HighlightCycleBackwardKey = Config.Bind("Laser Settings", "HighlightCycleBackwardKey", "DownArrow",
+                "Key used in debug mode to cycle cart highlight layers backward.");
+
+            DebugStopOverrideKey = Config.Bind("Laser Settings", "DebugStopOverrideKey", "Return",
+                "Debug-only key that temporarily changes laser/ghost stop behavior while held.");
+
+            EnableDebugVisuals = Config.Bind("Laser Settings", "EnableDebugVisuals", true,
+                "If true, allows debug visualizers/highlighters when debug mode is active.");
+
+            EnableHitDiagnostics = Config.Bind("Laser Settings", "EnableHitDiagnostics", false,
+                "If true, emits periodic hit diagnostics and stop-selection logs.");
         }
 
         private void BindInternalConfig()
