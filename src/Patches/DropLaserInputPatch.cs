@@ -26,24 +26,24 @@ namespace ObjectDropLaserMod.Patches
 
             if (!singlePlayer)
             {
-                // In multiplayer — make sure only local players process input
+                // In multiplayer make sure only local players process input
                 if (view != null && !view.IsMine)
                 {
-                    // DropLaserLogger.Info("[DropLaserInputPatch] Detected a non-local player — skipping input.");
+                    // DropLaserLogger.Info("[DropLaserInputPatch] Detected a non-local player skipping input.");
                     return true;
                 }
             }
 
             // Check if the configured toggle key was pressed
-            if (Input.GetKeyDown(Plugin.ToggleLaserKey.Value.ToLower()))
+            if (DropLaserInputHelper.IsConfiguredKeyDown(Plugin.ToggleLaserKey.Value))
             {
                 DropLaserLogger.Info("[DropLaserInputPatch] Local player pressed L (singleplayer: " + singlePlayer + ").");
                 DropLaserLogger.Info("[DropLaserInputPatch] Number on PlayerList = ) " + PhotonNetwork.PlayerList.Length);
                 
                 if (!ObjectDropLaserMod.GrabDetection.GrabDetectionState.IsHoldingObject)
                 {
-                    DropLaserLogger.Info("[DropLaserInputPatch] L pressed but not holding object — ignoring toggle.");
-                    return false;
+                    DropLaserLogger.Info("[DropLaserInputPatch] L pressed but not holding object ignoring toggle.");
+                    return true;
                 }
 
                SimulateKeyPress();
@@ -71,3 +71,4 @@ namespace ObjectDropLaserMod.Patches
 
     }
 }
+

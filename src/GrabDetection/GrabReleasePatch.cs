@@ -1,4 +1,5 @@
 using HarmonyLib;
+using ObjectDropLaserMod.Systems;
 using ObjectDropLaserMod.Utils;
 
 namespace ObjectDropLaserMod.GrabDetection
@@ -26,6 +27,12 @@ namespace ObjectDropLaserMod.GrabDetection
             // Update grab detection global state
             GrabDetectionState.IsHoldingObject = false;
             DropLaserLogger.Info("[GrabReleasePatch] IsHoldingObject = false");
+
+            if (DropLaserManager.Instance.HasController())
+            {
+                DropLaserManager.Instance.ForceDisableLaser();
+                DropLaserLogger.Info("[GrabReleasePatch] ForceDisableLaser() called.");
+            }
         }
     }
 }
