@@ -1,5 +1,31 @@
 # Changelog - REPO-DropLaser-LandingLaserMod
 
+## [1.1.1]
+### Added
+- New debug visualization architecture for cart hitbox inspection:
+  - Dedicated beam debug service.
+  - Cart hit-ray visualizer.
+  - Cart part highlighter with forward/backward cycling.
+- New debug/runtime config options:
+  - `EnableDebugVisuals`
+  - `EnableHitDiagnostics`
+
+### Changed
+- Refactored beam debug logic out of the main beam runtime path for cleaner architecture.
+- Unified configured key parsing through a shared input helper.
+- Debug stop override now uses the configured `DebugStopOverrideKey` consistently.
+- `EnableDebugVisuals` now defaults to `true`.
+
+### Fixed
+- Fixed Harmony input prefix behavior so base grabber update is not skipped when toggling without a held object.
+- Consolidated duplicate `ReleaseObject` patch behavior into a single release flow.
+- Removed unused ghost projection subsystem that was not wired into runtime.
+- Wired previously unused ghost configs into runtime behavior:
+  - `UseCustomGhostColor`
+  - `CustomGhostColor`
+  - `GhostEmissionIntensity`
+- Applied release hygiene cleanup (`.gitignore` newline and text normalization).
+
 ## [1.1.0]
 ### Added
 - Ghost preview landing mode with configurable behavior:
@@ -26,19 +52,7 @@
 
 ## [1.0.1]
 ### Added
-- Initial public release.
-- Adds a downward-pointing laser when holding objects.
-- Laser dynamically shows where the held object would land if dropped.
-- Configurable options for:
-  - Enabling/disabling the laser system.
-  - Customizing laser color (match grab beam or set your own).
-  - Adjusting laser start width, end width, and max scan distance.
-  - Adjusting laser glow light intensity and range.
-  - Choosing a custom toggle key (default `L`).
-  - Auto-enable laser when grabbing an object.
-- Multiplayer support: laser is local-only and behaves correctly in multiplayer sessions.
-- Scene transitions handled cleanly with no leftover objects or memory leaks.
-- Fully optimized for minimal CPU and GPU impact.
+- None
 
 ### Fixed
 - Corrected Manifest
