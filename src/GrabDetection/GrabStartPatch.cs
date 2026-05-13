@@ -29,7 +29,7 @@ namespace ObjectDropLaserMod.GrabDetection
             {
                 // Update global grab detection state
                 GrabDetectionState.IsHoldingObject = true;
-                DropLaserLogger.Info("[GrabStartPatch] Grab confirmed — IsHoldingObject = true");
+                DropLaserLogger.Info("[GrabStartPatch] Grab confirmed - IsHoldingObject = true");
 
                 // auto-enable the laser if configured
                 if (Plugin.AutoEnableOnGrab.Value)
@@ -41,3 +41,4 @@ namespace ObjectDropLaserMod.GrabDetection
         }
     }
 }
+

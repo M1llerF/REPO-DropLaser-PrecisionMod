@@ -45,3 +45,5 @@ game-source-files/
 build-install-run.ps1
 Repository Release.sln
 REPO-DropLaser/
+decompiled-source-code/
+decompiled-assets/
