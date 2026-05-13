@@ -105,6 +105,8 @@ namespace ObjectDropLaserMod.Components
                 grabBeamOverlayLine.enabled = false;
             if (!isActive && dropBeamOverlayLine != null)
                 dropBeamOverlayLine.enabled = false;
+            if (!isActive)
+                dropLaserBeam?.Dispose();
             DropLaserLogger.Info($"[DropLaser] Laser toggled {(isActive ? "ON" : "OFF")}");
         }
 
