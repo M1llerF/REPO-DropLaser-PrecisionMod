@@ -557,7 +557,7 @@ namespace ObjectDropLaserMod.Components
 
         private static void LogStopInfoIfNeeded(string systemName, HitDebugInfo info, ref int nextLogFrame)
         {
-            if (!Plugin.EnableHitDiagnostics.Value)
+            if (!Plugin.EnableLogging.Value || !Plugin.EnableHitDiagnostics.Value)
                 return;
 
             if (Time.frameCount < nextLogFrame)
@@ -768,7 +768,7 @@ namespace ObjectDropLaserMod.Components
 
         private void DumpBeamHitsIfNeeded(PhysGrabObject heldObject, bool isAboveCart)
         {
-            if (!Plugin.EnableHitDiagnostics.Value)
+            if (!Plugin.EnableLogging.Value || !Plugin.EnableHitDiagnostics.Value)
                 return;
 
             if (debugService.IsDebugModeActive || !isAboveCart)

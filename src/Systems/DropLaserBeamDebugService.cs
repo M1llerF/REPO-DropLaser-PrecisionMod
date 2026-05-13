@@ -25,6 +25,12 @@ namespace ObjectDropLaserMod.Systems
 
         public void Tick()
         {
+            if (!AreDebugSystemsEnabled())
+            {
+                ForceDisableDebugSystems();
+                return;
+            }
+
             UpdateDebugModeToggle();
             UpdateDebugStopOverrideLogState();
 
@@ -43,6 +49,12 @@ namespace ObjectDropLaserMod.Systems
 
         public void RenderBeamHits(Vector3 beamStart, RaycastHit[] hitBuffer, int hitCount, PhysGrabObject heldObject)
         {
+            if (!AreDebugSystemsEnabled())
+            {
+                cartDebugVisualizer.Hide();
+                return;
+            }
+
             if (ShouldRunDebugVisuals())
                 cartDebugVisualizer.RenderHits(beamStart, hitBuffer, hitCount, heldObject);
             else
@@ -51,6 +63,9 @@ namespace ObjectDropLaserMod.Systems
 
         public bool IsDebugStopOverrideActive()
         {
+            if (!AreDebugSystemsEnabled())
+                return false;
+
             if (!cartDebugModeActive)
                 return false;
 
@@ -71,6 +86,9 @@ namespace ObjectDropLaserMod.Systems
 
         private void UpdateDebugModeToggle()
         {
+            if (!AreDebugSystemsEnabled())
+                return;
+
             if (!DropLaserInputHelper.IsConfiguredKeyDown(Plugin.DebugStopOverrideKey.Value))
                 return;
 
@@ -93,7 +111,7 @@ namespace ObjectDropLaserMod.Systems
 
         private void UpdateDebugStopOverrideLogState()
         {
-            if (!Plugin.EnableHitDiagnostics.Value)
+            if (!AreDebugSystemsEnabled() || !Plugin.EnableHitDiagnostics.Value)
                 return;
 
             bool active = IsDebugStopOverrideActive();
@@ -106,7 +124,21 @@ namespace ObjectDropLaserMod.Systems
 
         private bool ShouldRunDebugVisuals()
         {
-            return cartDebugModeActive && Plugin.EnableDebugVisuals.Value;
+            return AreDebugSystemsEnabled() && cartDebugModeActive && Plugin.EnableDebugVisuals.Value;
+        }
+
+        private static bool AreDebugSystemsEnabled()
+        {
+            return Plugin.EnableLogging.Value;
+        }
+
+        private void ForceDisableDebugSystems()
+        {
+            cartDebugModeActive = false;
+            debugStopOverrideLoggedActive = false;
+            debugVisualsWereRunning = false;
+            cartPartHighlighter.Dispose();
+            cartDebugVisualizer.Hide();
         }
     }
 }
