@@ -1,5 +1,18 @@
 # Changelog - REPO-DropLaser-LandingLaserMod
 
+## [1.1.3]
+### Added
+- The 3x3 bounds raycasting system was not great. Replaced with bottom-face downward casting.
+
+### Fixed
+- README should now display images and link to video on Thunderstore.
+## [1.1.2]
+### Added
+- None
+
+### Fixed
+- README should now display images and link to video on Thunderstore.
+
 ## [1.1.1]
 ### Added
 - New debug visualization architecture for cart hitbox inspection:
