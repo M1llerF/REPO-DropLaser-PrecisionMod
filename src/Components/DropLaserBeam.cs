@@ -22,7 +22,7 @@ namespace ObjectDropLaserMod.Components
         private const float EndTaperAlphaMultiplier = 0.6f;
         private const int StopLogIntervalFrames = 1000;
         private const float RegularHitDumpIntervalSeconds = 5f;
-        private static readonly float[] BoundsSampleAxis = { 0f, 0.5f, 1f };
+        private const float BottomNormalDotThreshold = 0.85f;
 
         private readonly LineRenderer dropBeamLine;
         private readonly LineRenderer grabBeamOverlayLine;
@@ -516,43 +516,123 @@ namespace ObjectDropLaserMod.Components
             ref float highestSurfaceY,
             ref RaycastHit bestHigherHit)
         {
-            Bounds bounds = collider.bounds;
             bool foundHigherHit = false;
+            List<Vector3> bottomSamplePoints = new List<Vector3>();
+            CollectBottomFaceSamplePoints(collider, bottomSamplePoints);
 
-            for (int x = 0; x < BoundsSampleAxis.Length; x++)
+            for (int i = 0; i < bottomSamplePoints.Count; i++)
             {
-                float sampleX = Mathf.Lerp(bounds.min.x, bounds.max.x, BoundsSampleAxis[x]);
-                for (int z = 0; z < BoundsSampleAxis.Length; z++)
+                Vector3 rayOrigin = bottomSamplePoints[i] + Vector3.up * GhostRayStartOffset;
+                int hitCount = Physics.RaycastNonAlloc(
+                    rayOrigin,
+                    Vector3.down,
+                    raycastHitBuffer,
+                    Plugin.LaserMaxDistance.Value,
+                    Physics.DefaultRaycastLayers,
+                    QueryTriggerInteraction.Collide);
+
+                for (int hitIndex = 0; hitIndex < hitCount; hitIndex++)
                 {
-                    float sampleZ = Mathf.Lerp(bounds.min.z, bounds.max.z, BoundsSampleAxis[z]);
-                    Vector3 rayOrigin = new Vector3(sampleX, bounds.max.y + GhostRayStartOffset, sampleZ);
-                    int hitCount = Physics.RaycastNonAlloc(
-                        rayOrigin,
-                        Vector3.down,
-                        raycastHitBuffer,
-                        Plugin.LaserMaxDistance.Value,
-                        Physics.DefaultRaycastLayers,
-                        QueryTriggerInteraction.Collide);
+                    RaycastHit hit = raycastHitBuffer[hitIndex];
+                    if (!IsValidBeamHit(hit, heldObject))
+                        continue;
 
-                    for (int i = 0; i < hitCount; i++)
-                    {
-                        RaycastHit hit = raycastHitBuffer[i];
-                        if (!IsValidBeamHit(hit, heldObject))
-                            continue;
+                    lastGhostCandidateHits.Add(new HitDebugInfo(hit));
+                    if (hit.point.y <= highestSurfaceY)
+                        continue;
 
-                        lastGhostCandidateHits.Add(new HitDebugInfo(hit));
-                        if (hit.point.y <= highestSurfaceY)
-                            continue;
-
-                        highestSurfaceY = hit.point.y;
-                        bestHigherHit = hit;
-                        foundHigherHit = true;
-                    }
-
+                    highestSurfaceY = hit.point.y;
+                    bestHigherHit = hit;
+                    foundHigherHit = true;
                 }
             }
 
             return foundHigherHit;
+        }
+
+        private static void CollectBottomFaceSamplePoints(Collider collider, List<Vector3> points)
+        {
+            points.Clear();
+            if (collider == null)
+                return;
+
+            if (collider is BoxCollider box)
+            {
+                AddBoxBottomFacePoints(box, points);
+                return;
+            }
+
+            if (collider is MeshCollider meshCollider)
+            {
+                AddMeshBottomFacePoints(meshCollider, points);
+                if (points.Count > 0)
+                    return;
+            }
+
+            Bounds bounds = collider.bounds;
+            points.Add(new Vector3(bounds.center.x, bounds.min.y, bounds.center.z));
+        }
+
+        private static void AddBoxBottomFacePoints(BoxCollider box, List<Vector3> points)
+        {
+            Transform transform = box.transform;
+            Vector3 center = box.center;
+            Vector3 half = box.size * 0.5f;
+            float y = center.y - half.y;
+
+            points.Add(transform.TransformPoint(new Vector3(center.x - half.x, y, center.z - half.z)));
+            points.Add(transform.TransformPoint(new Vector3(center.x - half.x, y, center.z + half.z)));
+            points.Add(transform.TransformPoint(new Vector3(center.x + half.x, y, center.z - half.z)));
+            points.Add(transform.TransformPoint(new Vector3(center.x + half.x, y, center.z + half.z)));
+            points.Add(transform.TransformPoint(new Vector3(center.x, y, center.z)));
+        }
+
+        private static void AddMeshBottomFacePoints(MeshCollider meshCollider, List<Vector3> points)
+        {
+            Mesh mesh = meshCollider.sharedMesh;
+            if (mesh == null)
+                return;
+
+            Vector3[] vertices = mesh.vertices;
+            Vector3[] normals = mesh.normals;
+            int[] triangles = mesh.triangles;
+            if (vertices == null || triangles == null || triangles.Length < 3)
+                return;
+
+            Transform transform = meshCollider.transform;
+            bool hasNormals = normals != null && normals.Length == vertices.Length;
+
+            for (int i = 0; i < triangles.Length; i += 3)
+            {
+                int i0 = triangles[i];
+                int i1 = triangles[i + 1];
+                int i2 = triangles[i + 2];
+                if (i0 < 0 || i1 < 0 || i2 < 0 || i0 >= vertices.Length || i1 >= vertices.Length || i2 >= vertices.Length)
+                    continue;
+
+                bool isBottomFacing;
+                if (hasNormals)
+                {
+                    Vector3 avgNormalLocal = (normals[i0] + normals[i1] + normals[i2]) / 3f;
+                    Vector3 avgNormalWorld = transform.TransformDirection(avgNormalLocal).normalized;
+                    isBottomFacing = Vector3.Dot(avgNormalWorld, Vector3.down) >= BottomNormalDotThreshold;
+                }
+                else
+                {
+                    Vector3 w0 = transform.TransformPoint(vertices[i0]);
+                    Vector3 w1 = transform.TransformPoint(vertices[i1]);
+                    Vector3 w2 = transform.TransformPoint(vertices[i2]);
+                    Vector3 faceNormalWorld = Vector3.Cross(w1 - w0, w2 - w0).normalized;
+                    isBottomFacing = Vector3.Dot(faceNormalWorld, Vector3.down) >= BottomNormalDotThreshold;
+                }
+
+                if (!isBottomFacing)
+                    continue;
+
+                points.Add(transform.TransformPoint(vertices[i0]));
+                points.Add(transform.TransformPoint(vertices[i1]));
+                points.Add(transform.TransformPoint(vertices[i2]));
+            }
         }
 
         private static void LogStopInfoIfNeeded(string systemName, HitDebugInfo info, ref int nextLogFrame)
