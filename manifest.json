@@ -1,6 +1,6 @@
 {
   "name": "ObjectDropLaser",
-  "version_number": "1.1.0",
+  "version_number": "1.1.5",
   "website_url": "https://github.com/M1llerF/REPO-DropLaser-PrecisionMod",
   "description": "Tired of missing the cart? Shoot a laser to see where objects will drop!",
   "dependencies": [

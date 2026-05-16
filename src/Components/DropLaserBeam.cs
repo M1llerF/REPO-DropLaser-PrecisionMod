@@ -225,6 +225,11 @@ namespace ObjectDropLaserMod.Components
             return false;
         }
 
+        private static bool ShouldLogGhostWarnings()
+        {
+            return Plugin.EnableLogging != null && Plugin.EnableLogging.Value;
+        }
+
         private bool TryBuildFrameData(out BeamFrameData frameData)
         {
             frameData = default;
@@ -441,7 +446,8 @@ namespace ObjectDropLaserMod.Components
                 {
                     if (Time.frameCount >= nextGhostFailureLogFrame)
                     {
-                        Plugin.log.LogWarning("[DropLaser] Ghost transform update failed; hiding ghost for this frame.");
+                        if (ShouldLogGhostWarnings())
+                            Plugin.log.LogWarning("[DropLaser] Ghost transform update failed; hiding ghost for this frame.");
                         nextGhostFailureLogFrame = Time.frameCount + 120;
                     }
 
@@ -681,7 +687,8 @@ namespace ObjectDropLaserMod.Components
             ghostRoot = CreateVisualOnlyGhostRoot(heldObject.gameObject);
             if (ghostRoot == null)
             {
-                Plugin.log.LogWarning("[DropLaser] Failed to create visual-only ghost root.");
+                if (ShouldLogGhostWarnings())
+                    Plugin.log.LogWarning("[DropLaser] Failed to create visual-only ghost root.");
                 return;
             }
 
@@ -701,7 +708,8 @@ namespace ObjectDropLaserMod.Components
                     : dropBeamLine != null ? dropBeamLine.material : renderer.sharedMaterial;
                 if (sourceMaterial == null)
                 {
-                    Plugin.log.LogWarning($"[DropLaser] Ghost renderer '{renderer.name}' has no source material; skipping.");
+                    if (ShouldLogGhostWarnings())
+                        Plugin.log.LogWarning($"[DropLaser] Ghost renderer '{renderer.name}' has no source material; skipping.");
                     renderer.enabled = false;
                     continue;
                 }
@@ -718,7 +726,8 @@ namespace ObjectDropLaserMod.Components
 
             if (ghostRenderers.Count == 0)
             {
-                Plugin.log.LogWarning("[DropLaser] Ghost had no supported renderers; disabling ghost preview for this object.");
+                if (ShouldLogGhostWarnings())
+                    Plugin.log.LogWarning("[DropLaser] Ghost had no supported renderers; disabling ghost preview for this object.");
                 DestroyGhost();
                 return;
             }

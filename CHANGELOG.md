@@ -1,5 +1,10 @@
 # Changelog - REPO-DropLaser-LandingLaserMod
 
+## [1.1.5]
+### Fixed
+- Linked saga lifecycle spam logs to `EnableLogging` so cut-off/recovery chatter is suppressed when logging is disabled.
+- Linked ghost-preview warning chatter (including unavailable/no-renderer ghost cases) to `EnableLogging` so normal play no longer floods the log/chat.
+
 ## [1.1.4]
 ### Fixed
 - Reworked ghost preview instantiation to use a visual-only ghost hierarchy instead of cloning full gameplay objects.

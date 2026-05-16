@@ -25,6 +25,11 @@ namespace ObjectDropLaserMod.Systems
         private readonly int retryDelayFrames;
         private readonly Dictionary<string, BranchState> branches = new();
 
+        private static bool ShouldLogSagaLifecycle()
+        {
+            return Plugin.EnableLogging != null && Plugin.EnableLogging.Value;
+        }
+
         public SagaOrchestrator(ManualLogSource log, int retryDelayFrames = 180)
         {
             this.log = log;
@@ -40,7 +45,7 @@ namespace ObjectDropLaserMod.Systems
             if (state.IsCutOff && Time.frameCount < state.RetryAtFrame)
             {
                 // Keep surfacing the root-cause while cut off so failures do not look silent.
-                if (Time.frameCount >= state.LastCutOffLogFrame + 120)
+                if (ShouldLogSagaLifecycle() && Time.frameCount >= state.LastCutOffLogFrame + 120)
                 {
                     string reason = state.LastFailure != null ? state.LastFailure.Message : "unknown";
                     log.LogWarning($"[DropLaser:Saga] Branch '{branchName}' remains cut off until frame {state.RetryAtFrame} (last failure frame {state.LastFailureFrame}: {reason})");
@@ -52,7 +57,7 @@ namespace ObjectDropLaserMod.Systems
             try
             {
                 execute?.Invoke();
-                if (state.IsCutOff)
+                if (ShouldLogSagaLifecycle() && state.IsCutOff)
                     log.LogInfo($"[DropLaser:Saga] Branch '{branchName}' recovered and resumed.");
 
                 state.IsCutOff = false;
@@ -77,7 +82,8 @@ namespace ObjectDropLaserMod.Systems
                 state.IsCutOff = true;
                 state.RetryAtFrame = Time.frameCount + retryDelayFrames;
                 state.LastCutOffLogFrame = Time.frameCount;
-                log.LogWarning($"[DropLaser:Saga] Branch '{branchName}' cut off until frame {state.RetryAtFrame}.");
+                if (ShouldLogSagaLifecycle())
+                    log.LogWarning($"[DropLaser:Saga] Branch '{branchName}' cut off until frame {state.RetryAtFrame}.");
             }
         }
 
