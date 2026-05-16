@@ -1,5 +1,11 @@
 # Changelog - REPO-DropLaser-LandingLaserMod
 
+## [1.1.4]
+### Fixed
+- Reworked ghost preview instantiation to use a visual-only ghost hierarchy instead of cloning full gameplay objects.
+- Prevented runtime side effects from cloned object scripts/components during ghost creation (including `Awake()`-time null-reference crash paths such as enemy component initialization).
+- Added guard behavior to skip ghost preview safely when a held object has no supported renderers.
+
 ## [1.1.3]
 ### Added
 - The 3x3 bounds raycasting system was not great. Replaced with bottom-face downward casting.

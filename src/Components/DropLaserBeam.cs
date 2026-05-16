@@ -678,18 +678,15 @@ namespace ObjectDropLaserMod.Components
             ghostSource = heldObject;
             ghostRenderers.Clear();
 
-            ghostRoot = Object.Instantiate(heldObject.gameObject);
+            ghostRoot = CreateVisualOnlyGhostRoot(heldObject.gameObject);
+            if (ghostRoot == null)
+            {
+                Plugin.log.LogWarning("[DropLaser] Failed to create visual-only ghost root.");
+                return;
+            }
+
             ghostRoot.name = heldObject.gameObject.name + "_DropLaserGhost";
             Object.DontDestroyOnLoad(ghostRoot);
-
-            foreach (Rigidbody rb in ghostRoot.GetComponentsInChildren<Rigidbody>(true))
-                rb.isKinematic = true;
-
-            foreach (Collider collider in ghostRoot.GetComponentsInChildren<Collider>(true))
-                collider.enabled = false;
-
-            foreach (Behaviour behaviour in ghostRoot.GetComponentsInChildren<Behaviour>(true))
-                behaviour.enabled = false;
 
             foreach (Renderer renderer in ghostRoot.GetComponentsInChildren<Renderer>(true))
             {
@@ -719,7 +716,79 @@ namespace ObjectDropLaserMod.Components
                 });
             }
 
+            if (ghostRenderers.Count == 0)
+            {
+                Plugin.log.LogWarning("[DropLaser] Ghost had no supported renderers; disabling ghost preview for this object.");
+                DestroyGhost();
+                return;
+            }
+
             ghostRoot.SetActive(false);
+        }
+
+        private static GameObject CreateVisualOnlyGhostRoot(GameObject sourceRoot)
+        {
+            if (sourceRoot == null)
+                return null;
+
+            GameObject root = new GameObject(sourceRoot.name + "_GhostRoot");
+            CopyTransformOnly(sourceRoot.transform, root.transform);
+            CopyVisualComponents(sourceRoot, root);
+            BuildVisualHierarchy(sourceRoot.transform, root.transform);
+            return root;
+        }
+
+        private static void BuildVisualHierarchy(Transform source, Transform targetParent)
+        {
+            if (source == null || targetParent == null)
+                return;
+
+            for (int i = 0; i < source.childCount; i++)
+            {
+                Transform sourceChild = source.GetChild(i);
+                GameObject childGhost = new GameObject(sourceChild.name);
+                Transform childTransform = childGhost.transform;
+                childTransform.SetParent(targetParent, false);
+                CopyTransformOnly(sourceChild, childTransform);
+                CopyVisualComponents(sourceChild.gameObject, childGhost);
+                BuildVisualHierarchy(sourceChild, childTransform);
+            }
+        }
+
+        private static void CopyTransformOnly(Transform source, Transform target)
+        {
+            target.localPosition = source.localPosition;
+            target.localRotation = source.localRotation;
+            target.localScale = source.localScale;
+        }
+
+        private static void CopyVisualComponents(GameObject source, GameObject target)
+        {
+            MeshFilter sourceMeshFilter = source.GetComponent<MeshFilter>();
+            if (sourceMeshFilter != null)
+            {
+                MeshFilter targetMeshFilter = target.AddComponent<MeshFilter>();
+                targetMeshFilter.sharedMesh = sourceMeshFilter.sharedMesh;
+            }
+
+            MeshRenderer sourceMeshRenderer = source.GetComponent<MeshRenderer>();
+            if (sourceMeshRenderer != null)
+            {
+                MeshRenderer targetMeshRenderer = target.AddComponent<MeshRenderer>();
+                targetMeshRenderer.sharedMaterials = sourceMeshRenderer.sharedMaterials;
+                targetMeshRenderer.enabled = sourceMeshRenderer.enabled;
+            }
+
+            SkinnedMeshRenderer sourceSkinnedRenderer = source.GetComponent<SkinnedMeshRenderer>();
+            if (sourceSkinnedRenderer != null)
+            {
+                SkinnedMeshRenderer targetSkinnedRenderer = target.AddComponent<SkinnedMeshRenderer>();
+                targetSkinnedRenderer.sharedMesh = sourceSkinnedRenderer.sharedMesh;
+                targetSkinnedRenderer.sharedMaterials = sourceSkinnedRenderer.sharedMaterials;
+                targetSkinnedRenderer.enabled = sourceSkinnedRenderer.enabled;
+                targetSkinnedRenderer.localBounds = sourceSkinnedRenderer.localBounds;
+                targetSkinnedRenderer.updateWhenOffscreen = sourceSkinnedRenderer.updateWhenOffscreen;
+            }
         }
 
         private void SetGhostVisible(bool visible)
